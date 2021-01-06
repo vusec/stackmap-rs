@@ -262,7 +262,7 @@ impl<'a> FallibleIterator for LiveOutsIter<'a> {
 pub type DwarfRegNum = u16;
 
 #[derive(Debug, PartialEq, Eq)]
-pub enum LocationType {
+pub enum LocationKind {
     Register(DwarfRegNum),
     Direct { register: DwarfRegNum, offset: i32 },
     Indirect { register: DwarfRegNum, offset: i32 },
@@ -270,13 +270,13 @@ pub enum LocationType {
 }
 
 pub struct Location {
-    r#type: LocationType,
+    kind: LocationKind,
     size: u16,
 }
 
 impl Location {
-    pub fn r#type(&self) -> &LocationType {
-        &self.r#type
+    pub fn kind(&self) -> &LocationKind {
+        &self.kind
     }
 
     pub fn size(&self) -> u16 {
@@ -311,8 +311,8 @@ pub enum Error<'a> {
     InvalidConstantIndex {
         index: i32,
     },
-    InvalidLocationType {
-        invalid_type: u8,
+    InvalidLocationKind {
+        invalid_kind: u8,
     },
 }
 
@@ -360,8 +360,8 @@ mod tests {
         let locations: Vec<_> = records[0].locations().collect().unwrap();
         assert_eq!(locations.len(), 1);
         assert_eq!(
-            *locations[0].r#type(),
-            LocationType::Direct {
+            *locations[0].kind(),
+            LocationKind::Direct {
                 register: 6,
                 offset: -10
             }

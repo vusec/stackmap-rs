@@ -1,4 +1,4 @@
-use crate::{Error, Function, LiveOut, Location, LocationType, Record, StackMap};
+use crate::{Error, Function, LiveOut, Location, LocationKind, Record, StackMap};
 
 use std::{mem::size_of, slice};
 
@@ -156,40 +156,40 @@ pub(crate) fn parse_location<'a>(
 ) -> IResult<(&'a [u8], &'a [u64]), Location> {
     let (input, constants) = input_and_constants;
 
-    let (rest, (loc_type, zeroed_1, size, dwarf_reg_num, zeroed_2, offset_or_small_const)) =
+    let (rest, (loc_kind, zeroed_1, size, dwarf_reg_num, zeroed_2, offset_or_small_const)) =
         tuple((le_u8, le_u8, le_u16, le_u16, le_u16, le_i32))(input)?;
 
     if zeroed_1 != 0 || zeroed_2 != 0 {
         return Err(nom::Err::Failure(crate::Error::MalformedReserved));
     }
 
-    let r#type = match loc_type {
-        1 => LocationType::Register(dwarf_reg_num),
-        2 => LocationType::Direct {
+    let kind = match loc_kind {
+        1 => LocationKind::Register(dwarf_reg_num),
+        2 => LocationKind::Direct {
             register: dwarf_reg_num,
             offset: offset_or_small_const,
         },
-        3 => LocationType::Indirect {
+        3 => LocationKind::Indirect {
             register: dwarf_reg_num,
             offset: offset_or_small_const,
         },
-        4 => LocationType::Constant(offset_or_small_const as u64),
+        4 => LocationKind::Constant(offset_or_small_const as u64),
         5 => {
             if offset_or_small_const < 0 || offset_or_small_const as usize >= constants.len() {
                 return Err(nom::Err::Failure(crate::Error::InvalidConstantIndex {
                     index: offset_or_small_const,
                 }));
             }
-            LocationType::Constant(constants[offset_or_small_const as usize])
+            LocationKind::Constant(constants[offset_or_small_const as usize])
         }
-        invalid_type => {
-            return Err(nom::Err::Failure(crate::Error::InvalidLocationType {
-                invalid_type,
+        invalid_kind => {
+            return Err(nom::Err::Failure(crate::Error::InvalidLocationKind {
+                invalid_kind,
             }));
         }
     };
 
-    Ok(((rest, constants), Location { r#type, size }))
+    Ok(((rest, constants), Location { kind, size }))
 }
 
 pub(crate) fn parse_live_out(input: &[u8]) -> IResult<&[u8], LiveOut> {
