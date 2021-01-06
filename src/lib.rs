@@ -63,7 +63,7 @@ impl<'a> StackMap<'a> {
         FunctionsIter {
             data: self.functions,
             record_slices: &self.record_slices,
-            num_functions: self.num_functions,
+            remaining_functions: self.num_functions as usize,
             constants: self.constants,
         }
     }
@@ -73,7 +73,7 @@ pub struct FunctionsIter<'a> {
     data: &'a [u8],
     record_slices: &'a [&'a [u8]],
     constants: &'a [u64],
-    num_functions: u32,
+    remaining_functions: usize,
 }
 
 impl<'a> FallibleIterator for FunctionsIter<'a> {
@@ -94,6 +94,7 @@ impl<'a> FallibleIterator for FunctionsIter<'a> {
             Ok(((rest_data, rest_record_slices, _), next_function)) => {
                 self.data = rest_data;
                 self.record_slices = rest_record_slices;
+                self.remaining_functions -= 1;
                 Ok(Some(next_function))
             }
             Err(error) => Err(error),
@@ -101,10 +102,7 @@ impl<'a> FallibleIterator for FunctionsIter<'a> {
     }
 
     fn size_hint(&self) -> (usize, Option<usize>) {
-        (
-            self.num_functions as usize,
-            Some(self.num_functions as usize),
-        )
+        (self.remaining_functions, Some(self.remaining_functions))
     }
 }
 
@@ -128,7 +126,7 @@ impl<'a> Function<'a> {
     pub fn records(&self) -> RecordsIter<'a> {
         RecordsIter {
             records_iter: self.records.iter(),
-            record_count: self.records.len(),
+            remaining_records: self.records.len(),
             constants: self.constants,
         }
     }
@@ -137,7 +135,7 @@ impl<'a> Function<'a> {
 pub struct RecordsIter<'a> {
     records_iter: std::slice::Iter<'a, &'a [u8]>,
     constants: &'a [u64],
-    record_count: usize,
+    remaining_records: usize,
 }
 
 impl<'a> FallibleIterator for RecordsIter<'a> {
@@ -153,6 +151,7 @@ impl<'a> FallibleIterator for RecordsIter<'a> {
         match parser::parse_record((record_slice, self.constants)).finish() {
             Ok(((rest, _), next_record)) => {
                 assert!(rest.is_empty()); // This record slice has already been parsed
+                self.remaining_records -= 1;
                 Ok(Some(next_record))
             }
             Err(error) => Err(error),
@@ -160,7 +159,7 @@ impl<'a> FallibleIterator for RecordsIter<'a> {
     }
 
     fn size_hint(&self) -> (usize, Option<usize>) {
-        (self.record_count, Some(self.record_count))
+        (self.remaining_records, Some(self.remaining_records))
     }
 }
 
@@ -189,14 +188,14 @@ impl<'a> Record<'a> {
         LocationsIter {
             data: self.locations,
             constants: self.constants,
-            num_locations: self.num_locations,
+            remaining_locations: self.num_locations as usize,
         }
     }
 
     pub fn live_outs(&self) -> LiveOutsIter<'a> {
         LiveOutsIter {
             data: self.live_outs,
-            num_live_outs: self.num_live_outs,
+            remaining_live_outs: self.num_live_outs as usize,
         }
     }
 }
@@ -204,7 +203,7 @@ impl<'a> Record<'a> {
 pub struct LocationsIter<'a> {
     data: &'a [u8],
     constants: &'a [u64],
-    num_locations: u16,
+    remaining_locations: usize,
 }
 
 impl<'a> FallibleIterator for LocationsIter<'a> {
@@ -219,6 +218,7 @@ impl<'a> FallibleIterator for LocationsIter<'a> {
         match parser::parse_location((self.data, self.constants)).finish() {
             Ok(((rest, _), next_location)) => {
                 self.data = rest;
+                self.remaining_locations -= 1;
                 Ok(Some(next_location))
             }
             Err(error) => Err(error),
@@ -226,16 +226,13 @@ impl<'a> FallibleIterator for LocationsIter<'a> {
     }
 
     fn size_hint(&self) -> (usize, Option<usize>) {
-        (
-            self.num_locations as usize,
-            Some(self.num_locations as usize),
-        )
+        (self.remaining_locations, Some(self.remaining_locations))
     }
 }
 
 pub struct LiveOutsIter<'a> {
     data: &'a [u8],
-    num_live_outs: u16,
+    remaining_live_outs: usize,
 }
 
 impl<'a> FallibleIterator for LiveOutsIter<'a> {
@@ -250,6 +247,7 @@ impl<'a> FallibleIterator for LiveOutsIter<'a> {
         match parser::parse_live_out(self.data).finish() {
             Ok((rest, next_live_out)) => {
                 self.data = rest;
+                self.remaining_live_outs -= 1;
                 Ok(Some(next_live_out))
             }
             Err(error) => Err(error),
@@ -257,10 +255,7 @@ impl<'a> FallibleIterator for LiveOutsIter<'a> {
     }
 
     fn size_hint(&self) -> (usize, Option<usize>) {
-        (
-            self.num_live_outs as usize,
-            Some(self.num_live_outs as usize),
-        )
+        (self.remaining_live_outs, Some(self.remaining_live_outs))
     }
 }
 
