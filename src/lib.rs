@@ -50,7 +50,8 @@ pub struct StackMap<'a> {
     num_functions: u32,
 
     functions: &'a [u8],
-    records: Vec<Record<'a>>, // Records have variable length, so they cannot be lazily parsed
+    constants: &'a [u64],
+    record_slices: Vec<&'a [u8]>, // Records have variable length, so they cannot be lazily parsed
 }
 
 impl<'a> StackMap<'a> {
@@ -61,15 +62,17 @@ impl<'a> StackMap<'a> {
     pub fn functions(&self) -> FunctionsIter {
         FunctionsIter {
             data: self.functions,
-            records: &self.records,
+            record_slices: &self.record_slices,
             num_functions: self.num_functions,
+            constants: self.constants,
         }
     }
 }
 
 pub struct FunctionsIter<'a> {
     data: &'a [u8],
-    records: &'a [Record<'a>],
+    record_slices: &'a [&'a [u8]],
+    constants: &'a [u64],
     num_functions: u32,
 }
 
@@ -80,17 +83,17 @@ impl<'a> FallibleIterator for FunctionsIter<'a> {
     fn next(&mut self) -> ::core::result::Result<Option<Self::Item>, Self::Error> {
         if self.data.is_empty() {
             // The functions should contain all the records
-            if self.records.is_empty() {
+            if self.record_slices.is_empty() {
                 return Ok(None);
             } else {
                 return FunctionRecordMismatch.fail();
             }
         }
 
-        match parser::parse_function((self.data, self.records)).finish() {
-            Ok(((rest_data, rest_records), next_function)) => {
+        match parser::parse_function((self.data, self.record_slices, self.constants)).finish() {
+            Ok(((rest_data, rest_record_slices, _), next_function)) => {
                 self.data = rest_data;
-                self.records = rest_records;
+                self.record_slices = rest_record_slices;
                 Ok(Some(next_function))
             }
             Err(error) => Err(error),
@@ -109,7 +112,8 @@ pub struct Function<'a> {
     address: u64,
     stack_size: u64,
 
-    records: &'a [Record<'a>],
+    records: &'a [&'a [u8]],
+    constants: &'a [u64],
 }
 
 impl<'a> Function<'a> {
@@ -125,12 +129,14 @@ impl<'a> Function<'a> {
         RecordsIter {
             records_iter: self.records.iter(),
             record_count: self.records.len(),
+            constants: self.constants,
         }
     }
 }
 
 pub struct RecordsIter<'a> {
-    records_iter: std::slice::Iter<'a, Record<'a>>,
+    records_iter: std::slice::Iter<'a, &'a [u8]>,
+    constants: &'a [u64],
     record_count: usize,
 }
 
@@ -139,7 +145,18 @@ impl<'a> FallibleIterator for RecordsIter<'a> {
     type Error = Error<'a>;
 
     fn next(&mut self) -> ::core::result::Result<Option<Self::Item>, Self::Error> {
-        Ok(self.records_iter.next().cloned())
+        let record_slice = match self.records_iter.next() {
+            Some(record_slice) => record_slice,
+            None => return Ok(None),
+        };
+
+        match parser::parse_record((record_slice, self.constants)).finish() {
+            Ok(((rest, _), next_record)) => {
+                assert!(rest.is_empty()); // This record slice has already been parsed
+                Ok(Some(next_record))
+            }
+            Err(error) => Err(error),
+        }
     }
 
     fn size_hint(&self) -> (usize, Option<usize>) {

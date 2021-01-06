@@ -4,7 +4,6 @@ use std::{mem::size_of, slice};
 
 use nom::{
     bytes::complete::take,
-    multi::count,
     number::complete::{le_i32, le_u16, le_u32, le_u64, le_u8},
     sequence::tuple,
 };
@@ -54,7 +53,7 @@ const fn padding_size(parsed_bytes: usize, alignment_bytes: usize) -> usize {
     (alignment_bytes - (parsed_bytes % alignment_bytes)) % alignment_bytes
 }
 
-fn parse_record<'a>(
+pub(crate) fn parse_record<'a>(
     input_and_constants: (&'a [u8], &'a [u64]),
 ) -> IResult<'a, (&'a [u8], &'a [u64]), Record<'a>> {
     // The `constants` are just passed on without being changed
@@ -109,7 +108,17 @@ pub(crate) fn parse_stack_map(input: &[u8]) -> IResult<&[u8], StackMap> {
         )
     };
 
-    let ((rest, _), records) = count(parse_record, num_records as usize)((rest, constants))?;
+    let mut record_slices = Vec::with_capacity(num_records as usize);
+    let mut rest = rest;
+    for _ in 0..num_records {
+        let ((new_rest, _), _) = parse_record((rest, constants))?;
+
+        let record_size = rest.len() - new_rest.len();
+        let (record_slice, _) = rest.split_at(record_size);
+
+        record_slices.push(record_slice);
+        rest = new_rest;
+    }
 
     Ok((
         rest,
@@ -117,24 +126,27 @@ pub(crate) fn parse_stack_map(input: &[u8]) -> IResult<&[u8], StackMap> {
             version,
             num_functions,
             functions,
-            records,
+            record_slices,
+            constants,
         },
     ))
 }
 
+type InputRecordsConstantsTuple<'a> = (&'a [u8], &'a [&'a [u8]], &'a [u64]);
 pub(crate) fn parse_function<'a>(
-    input_and_records: (&'a [u8], &'a [Record<'a>]),
-) -> IResult<'a, (&'a [u8], &'a [Record<'a>]), Function<'a>> {
-    let (input, records) = input_and_records;
+    input_and_records_and_constants: InputRecordsConstantsTuple<'a>,
+) -> IResult<'a, InputRecordsConstantsTuple<'a>, Function<'a>> {
+    let (input, records, constants) = input_and_records_and_constants;
     let (rest_input, (address, stack_size, record_count)) = tuple((le_u64, le_u64, le_u64))(input)?;
     let (function_records, rest_records) = records.split_at(record_count as usize);
 
     Ok((
-        (rest_input, rest_records),
+        (rest_input, rest_records, constants),
         Function {
             address,
             stack_size,
             records: function_records,
+            constants,
         },
     ))
 }
