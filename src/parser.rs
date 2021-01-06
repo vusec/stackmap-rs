@@ -165,8 +165,14 @@ pub(crate) fn parse_location<'a>(
 
     let r#type = match loc_type {
         1 => LocationType::Register(dwarf_reg_num),
-        2 => LocationType::Direct(dwarf_reg_num, offset_or_small_const),
-        3 => LocationType::Indirect(dwarf_reg_num, offset_or_small_const),
+        2 => LocationType::Direct {
+            register: dwarf_reg_num,
+            offset: offset_or_small_const,
+        },
+        3 => LocationType::Indirect {
+            register: dwarf_reg_num,
+            offset: offset_or_small_const,
+        },
         4 => LocationType::Constant(offset_or_small_const as u64),
         5 => {
             if offset_or_small_const < 0 || offset_or_small_const as usize >= constants.len() {

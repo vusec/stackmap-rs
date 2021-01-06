@@ -259,13 +259,13 @@ impl<'a> FallibleIterator for LiveOutsIter<'a> {
     }
 }
 
-type DwarfRegNum = u16;
+pub type DwarfRegNum = u16;
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum LocationType {
     Register(DwarfRegNum),
-    Direct(DwarfRegNum, i32),
-    Indirect(DwarfRegNum, i32),
+    Direct { register: DwarfRegNum, offset: i32 },
+    Indirect { register: DwarfRegNum, offset: i32 },
     Constant(u64),
 }
 
@@ -359,7 +359,13 @@ mod tests {
 
         let locations: Vec<_> = records[0].locations().collect().unwrap();
         assert_eq!(locations.len(), 1);
-        assert_eq!(*locations[0].r#type(), LocationType::Direct(6, -10));
+        assert_eq!(
+            *locations[0].r#type(),
+            LocationType::Direct {
+                register: 6,
+                offset: -10
+            }
+        );
         assert_eq!(locations[0].size(), 8);
 
         let live_outs: Vec<_> = records[0].live_outs().collect().unwrap();
