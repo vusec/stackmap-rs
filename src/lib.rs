@@ -4,6 +4,7 @@ use fallible_iterator::FallibleIterator;
 use nom::Finish;
 use snafu::Snafu;
 
+#[derive(Debug)]
 pub struct LLVMStackMaps<'a> {
     section_data: &'a [u8],
 }
@@ -45,6 +46,7 @@ impl<'a> FallibleIterator for StackMapsIter<'a> {
 
 type StackMapVersion = u8;
 
+#[derive(Debug)]
 pub struct StackMap<'a> {
     version: StackMapVersion,
     num_functions: u32,
@@ -106,6 +108,7 @@ impl<'a> FallibleIterator for FunctionsIter<'a> {
     }
 }
 
+#[derive(Debug)]
 pub struct Function<'a> {
     address: u64,
     stack_size: u64,
@@ -163,7 +166,7 @@ impl<'a> FallibleIterator for RecordsIter<'a> {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct Record<'a> {
     patch_point_id: u64,
     instruction_offset: u32,
@@ -269,6 +272,7 @@ pub enum LocationKind {
     Constant(u64),
 }
 
+#[derive(Debug)]
 pub struct Location {
     kind: LocationKind,
     size: u16,
@@ -284,6 +288,7 @@ impl Location {
     }
 }
 
+#[derive(Debug)]
 pub struct LiveOut {
     dwarf_reg_num: DwarfRegNum,
     size: u8,
