@@ -132,20 +132,20 @@ pub(crate) fn parse_stack_map(input: &[u8]) -> IResult<&[u8], StackMap> {
     ))
 }
 
-type InputRecordsConstantsTuple<'a> = (&'a [u8], &'a [&'a [u8]], &'a [u64]);
+type InputRecordsConstantsTuple<'a> = (&'a [u8], Vec<&'a [u8]>, &'a [u64]);
 pub(crate) fn parse_function(
     input_and_records_and_constants: InputRecordsConstantsTuple,
 ) -> IResult<InputRecordsConstantsTuple, Function> {
-    let (input, records, constants) = input_and_records_and_constants;
+    let (input, mut records, constants) = input_and_records_and_constants;
     let (rest_input, (address, stack_size, record_count)) = tuple((le_u64, le_u64, le_u64))(input)?;
-    let (function_records, rest_records) = records.split_at(record_count as usize);
+    let rest_records = records.split_off(record_count as usize);
 
     Ok((
         (rest_input, rest_records, constants),
         Function {
             address,
             stack_size,
-            records: function_records,
+            records,
             constants,
         },
     ))

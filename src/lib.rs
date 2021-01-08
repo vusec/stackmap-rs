@@ -1,10 +1,12 @@
 mod parser;
 
+use std::mem;
+
 use fallible_iterator::FallibleIterator;
 use nom::Finish;
 use snafu::Snafu;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct LLVMStackMaps<'a> {
     section_data: &'a [u8],
 }
@@ -46,7 +48,7 @@ impl<'a> FallibleIterator for StackMapsIter<'a> {
 
 type StackMapVersion = u8;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct StackMap<'a> {
     version: StackMapVersion,
     num_functions: u32,
@@ -64,7 +66,7 @@ impl<'a> StackMap<'a> {
     pub fn functions(&self) -> FunctionsIter {
         FunctionsIter {
             data: self.functions,
-            record_slices: &self.record_slices,
+            record_slices: self.record_slices.clone(),
             remaining_functions: self.num_functions as usize,
             constants: self.constants,
         }
@@ -73,7 +75,7 @@ impl<'a> StackMap<'a> {
 
 pub struct FunctionsIter<'a> {
     data: &'a [u8],
-    record_slices: &'a [&'a [u8]],
+    record_slices: Vec<&'a [u8]>,
     constants: &'a [u64],
     remaining_functions: usize,
 }
@@ -92,7 +94,13 @@ impl<'a> FallibleIterator for FunctionsIter<'a> {
             }
         }
 
-        match parser::parse_function((self.data, self.record_slices, self.constants)).finish() {
+        match parser::parse_function((
+            self.data,
+            mem::take(&mut self.record_slices),
+            self.constants,
+        ))
+        .finish()
+        {
             Ok(((rest_data, rest_record_slices, _), next_function)) => {
                 self.data = rest_data;
                 self.record_slices = rest_record_slices;
@@ -108,12 +116,12 @@ impl<'a> FallibleIterator for FunctionsIter<'a> {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Function<'a> {
     address: u64,
     stack_size: u64,
 
-    records: &'a [&'a [u8]],
+    records: Vec<&'a [u8]>,
     constants: &'a [u64],
 }
 
@@ -126,7 +134,7 @@ impl<'a> Function<'a> {
         self.stack_size
     }
 
-    pub fn records(&self) -> RecordsIter<'a> {
+    pub fn records(&'a self) -> RecordsIter<'a> {
         RecordsIter {
             records_iter: self.records.iter(),
             remaining_records: self.records.len(),
@@ -166,7 +174,7 @@ impl<'a> FallibleIterator for RecordsIter<'a> {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Record<'a> {
     patch_point_id: u64,
     instruction_offset: u32,
@@ -264,7 +272,7 @@ impl<'a> FallibleIterator for LiveOutsIter<'a> {
 
 pub type DwarfRegNum = u16;
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum LocationKind {
     Register(DwarfRegNum),
     Direct { register: DwarfRegNum, offset: i32 },
@@ -272,7 +280,7 @@ pub enum LocationKind {
     Constant(u64),
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Location {
     kind: LocationKind,
     size: u16,
@@ -288,7 +296,7 @@ impl Location {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct LiveOut {
     dwarf_reg_num: DwarfRegNum,
     size: u8,
