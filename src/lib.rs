@@ -7,31 +7,31 @@ use nom::Finish;
 use snafu::Snafu;
 
 #[derive(Debug, Clone)]
-pub struct LLVMStackMaps<'a> {
-    section_data: &'a [u8],
+pub struct LLVMStackMaps<'input> {
+    section_data: &'input [u8],
 }
 
-impl<'a> LLVMStackMaps<'a> {
-    pub fn new(section_data: &'a [u8]) -> Self {
-        LLVMStackMaps { section_data }
+impl<'input> LLVMStackMaps<'input> {
+    pub fn new(section_data: &'input [u8]) -> Self {
+        Self { section_data }
     }
 
-    pub fn stack_maps(&self) -> StackMapsIter<'a> {
+    pub fn stack_maps(&self) -> StackMapsIter<'input> {
         StackMapsIter {
             data: self.section_data,
         }
     }
 }
 
-pub struct StackMapsIter<'a> {
-    data: &'a [u8],
+pub struct StackMapsIter<'input> {
+    data: &'input [u8],
 }
 
-impl<'a> FallibleIterator for StackMapsIter<'a> {
-    type Item = StackMap<'a>;
-    type Error = Error<'a>;
+impl<'input> FallibleIterator for StackMapsIter<'input> {
+    type Item = StackMap<'input>;
+    type Error = Error<'input>;
 
-    fn next(&mut self) -> ::core::result::Result<Option<Self::Item>, Self::Error> {
+    fn next(&mut self) -> Result<'input, Option<Self::Item>> {
         if self.data.is_empty() {
             return Ok(None);
         }
@@ -49,21 +49,21 @@ impl<'a> FallibleIterator for StackMapsIter<'a> {
 type StackMapVersion = u8;
 
 #[derive(Debug, Clone)]
-pub struct StackMap<'a> {
+pub struct StackMap<'input> {
     version: StackMapVersion,
     num_functions: u32,
 
-    functions: &'a [u8],
-    constants: &'a [u64],
-    record_slices: Vec<&'a [u8]>, // Records have variable length, so they cannot be lazily parsed
+    functions: &'input [u8],
+    constants: &'input [u64],
+    record_slices: Vec<&'input [u8]>, // Records have variable length, so they cannot be lazily parsed
 }
 
-impl<'a> StackMap<'a> {
+impl<'input> StackMap<'input> {
     pub fn version(&self) -> StackMapVersion {
         self.version
     }
 
-    pub fn functions(&self) -> FunctionsIter {
+    pub fn functions(&self) -> FunctionsIter<'input> {
         FunctionsIter {
             data: self.functions,
             record_slices: self.record_slices.clone(),
@@ -73,18 +73,18 @@ impl<'a> StackMap<'a> {
     }
 }
 
-pub struct FunctionsIter<'a> {
-    data: &'a [u8],
-    record_slices: Vec<&'a [u8]>,
-    constants: &'a [u64],
+pub struct FunctionsIter<'input> {
+    data: &'input [u8],
+    record_slices: Vec<&'input [u8]>,
+    constants: &'input [u64],
     remaining_functions: usize,
 }
 
-impl<'a> FallibleIterator for FunctionsIter<'a> {
-    type Item = Function<'a>;
-    type Error = Error<'a>;
+impl<'input> FallibleIterator for FunctionsIter<'input> {
+    type Item = Function<'input>;
+    type Error = Error<'input>;
 
-    fn next(&mut self) -> ::core::result::Result<Option<Self::Item>, Self::Error> {
+    fn next(&mut self) -> Result<'input, Option<Self::Item>> {
         if self.data.is_empty() {
             // The functions should contain all the records
             if self.record_slices.is_empty() {
@@ -117,15 +117,15 @@ impl<'a> FallibleIterator for FunctionsIter<'a> {
 }
 
 #[derive(Debug, Clone)]
-pub struct Function<'a> {
+pub struct Function<'input> {
     address: u64,
     stack_size: u64,
 
-    records: Vec<&'a [u8]>,
-    constants: &'a [u64],
+    records: Vec<&'input [u8]>,
+    constants: &'input [u64],
 }
 
-impl<'a> Function<'a> {
+impl<'input> Function<'input> {
     pub fn address(&self) -> u64 {
         self.address
     }
@@ -134,7 +134,7 @@ impl<'a> Function<'a> {
         self.stack_size
     }
 
-    pub fn records(&'a self) -> RecordsIter<'a> {
+    pub fn records<'me>(&'me self) -> RecordsIter<'me, 'input> {
         RecordsIter {
             records_iter: self.records.iter(),
             remaining_records: self.records.len(),
@@ -143,17 +143,17 @@ impl<'a> Function<'a> {
     }
 }
 
-pub struct RecordsIter<'a> {
-    records_iter: std::slice::Iter<'a, &'a [u8]>,
-    constants: &'a [u64],
+pub struct RecordsIter<'function, 'input> {
+    records_iter: std::slice::Iter<'function, &'input [u8]>,
+    constants: &'input [u64],
     remaining_records: usize,
 }
 
-impl<'a> FallibleIterator for RecordsIter<'a> {
-    type Item = Record<'a>;
-    type Error = Error<'a>;
+impl<'function, 'input> FallibleIterator for RecordsIter<'function, 'input> {
+    type Item = Record<'input>;
+    type Error = Error<'input>;
 
-    fn next(&mut self) -> ::core::result::Result<Option<Self::Item>, Self::Error> {
+    fn next(&mut self) -> Result<'input, Option<Self::Item>> {
         let record_slice = match self.records_iter.next() {
             Some(record_slice) => record_slice,
             None => return Ok(None),
@@ -175,18 +175,18 @@ impl<'a> FallibleIterator for RecordsIter<'a> {
 }
 
 #[derive(Debug, Clone)]
-pub struct Record<'a> {
+pub struct Record<'input> {
     patch_point_id: u64,
     instruction_offset: u32,
     num_locations: u16,
     num_live_outs: u16,
 
-    locations: &'a [u8],
-    live_outs: &'a [u8],
-    constants: &'a [u64],
+    locations: &'input [u8],
+    live_outs: &'input [u8],
+    constants: &'input [u64],
 }
 
-impl<'a> Record<'a> {
+impl<'input> Record<'input> {
     pub fn patch_point_id(&self) -> u64 {
         self.patch_point_id
     }
@@ -195,7 +195,7 @@ impl<'a> Record<'a> {
         self.instruction_offset
     }
 
-    pub fn locations(&self) -> LocationsIter<'a> {
+    pub fn locations(&self) -> LocationsIter<'input> {
         LocationsIter {
             data: self.locations,
             constants: self.constants,
@@ -203,7 +203,7 @@ impl<'a> Record<'a> {
         }
     }
 
-    pub fn live_outs(&self) -> LiveOutsIter<'a> {
+    pub fn live_outs(&self) -> LiveOutsIter<'input> {
         LiveOutsIter {
             data: self.live_outs,
             remaining_live_outs: self.num_live_outs as usize,
@@ -211,17 +211,17 @@ impl<'a> Record<'a> {
     }
 }
 
-pub struct LocationsIter<'a> {
-    data: &'a [u8],
-    constants: &'a [u64],
+pub struct LocationsIter<'input> {
+    data: &'input [u8],
+    constants: &'input [u64],
     remaining_locations: usize,
 }
 
-impl<'a> FallibleIterator for LocationsIter<'a> {
+impl<'input> FallibleIterator for LocationsIter<'input> {
     type Item = Location;
-    type Error = Error<'a>;
+    type Error = Error<'input>;
 
-    fn next(&mut self) -> ::core::result::Result<Option<Self::Item>, Self::Error> {
+    fn next(&mut self) -> Result<'input, Option<Self::Item>> {
         if self.data.is_empty() {
             return Ok(None);
         }
@@ -241,16 +241,16 @@ impl<'a> FallibleIterator for LocationsIter<'a> {
     }
 }
 
-pub struct LiveOutsIter<'a> {
-    data: &'a [u8],
+pub struct LiveOutsIter<'input> {
+    data: &'input [u8],
     remaining_live_outs: usize,
 }
 
-impl<'a> FallibleIterator for LiveOutsIter<'a> {
+impl<'input> FallibleIterator for LiveOutsIter<'input> {
     type Item = LiveOut;
-    type Error = Error<'a>;
+    type Error = Error<'input>;
 
-    fn next(&mut self) -> ::core::result::Result<Option<Self::Item>, Self::Error> {
+    fn next(&mut self) -> Result<'input, Option<Self::Item>> {
         if self.data.is_empty() {
             return Ok(None);
         }
@@ -311,6 +311,9 @@ impl LiveOut {
         self.size
     }
 }
+
+type Result<'a, T> = std::result::Result<T, Error<'a>>;
+
 #[derive(Debug, Snafu)]
 pub enum Error<'a> {
     ParserError {
@@ -383,5 +386,64 @@ mod tests {
 
         let live_outs: Vec<_> = records[0].live_outs().collect().unwrap();
         assert!(live_outs.is_empty());
+    }
+
+    #[test]
+    fn lifetimes_test() {
+        let data: &[u8] = &[
+            0x03, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00,
+            0x00, 0x00, 0xc0, 0x11, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x58, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x2a, 0x00,
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x0f, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00,
+            0x02, 0x00, 0x08, 0x00, 0x06, 0x00, 0x00, 0x00, 0xf6, 0xff, 0xff, 0xff, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        ];
+        let section = LLVMStackMaps::new(data);
+
+        let stack_map;
+        let function;
+        let record;
+        let location;
+        {
+            let stack_maps: Vec<_> = section.stack_maps().collect().unwrap();
+            assert_eq!(stack_maps.len(), 1);
+            stack_map = Some(stack_maps[0].clone());
+            {
+                let functions: Vec<_> = stack_maps[0].functions().collect().unwrap();
+                assert_eq!(functions.len(), 1);
+                function = Some(functions[0].clone());
+                {
+                    let records: Vec<_> = functions[0].records().collect().unwrap();
+                    assert_eq!(records.len(), 1);
+                    record = Some(records[0].clone());
+                    {
+                        let locations: Vec<_> = records[0].locations().collect().unwrap();
+                        assert_eq!(locations.len(), 1);
+                        location = Some(locations[0].clone());
+                    }
+                }
+            }
+        }
+
+        let stack_map = stack_map.unwrap();
+        assert_eq!(stack_map.version(), 3);
+
+        let function = function.unwrap();
+        assert_eq!(function.address(), 0x11c0);
+        assert_eq!(function.stack_size(), 88);
+
+        let record = record.unwrap();
+        assert_eq!(record.patch_point_id(), 42);
+        assert_eq!(record.instruction_offset(), 15);
+
+        let location = location.unwrap();
+        assert_eq!(
+            *location.kind(),
+            LocationKind::Direct {
+                register: 6,
+                offset: -10
+            }
+        );
+        assert_eq!(location.size(), 8);
     }
 }
