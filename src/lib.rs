@@ -63,6 +63,10 @@ impl<'input> StackMap<'input> {
         self.version
     }
 
+    pub fn num_functions(&self) -> usize {
+        self.num_functions as usize
+    }
+
     pub fn functions(&self) -> FunctionsIter<'input> {
         FunctionsIter {
             data: self.functions,
@@ -134,6 +138,10 @@ impl<'input> Function<'input> {
         self.stack_size as usize
     }
 
+    pub fn num_records(&self) -> usize {
+        self.records.len()
+    }
+
     pub fn records<'me>(&'me self) -> RecordsIter<'me, 'input> {
         RecordsIter {
             records_iter: self.records.iter(),
@@ -195,12 +203,20 @@ impl<'input> Record<'input> {
         self.instruction_offset as usize
     }
 
+    pub fn num_locations(&self) -> usize {
+        self.num_locations as usize
+    }
+
     pub fn locations(&self) -> LocationsIter<'input> {
         LocationsIter {
             data: self.locations,
             constants: self.constants,
             remaining_locations: self.num_locations as usize,
         }
+    }
+
+    pub fn num_live_outs(&self) -> usize {
+        self.num_live_outs as usize
     }
 
     pub fn live_outs(&self) -> LiveOutsIter<'input> {
