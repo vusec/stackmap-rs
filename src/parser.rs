@@ -167,11 +167,11 @@ pub(crate) fn parse_location<'a>(
         1 => LocationKind::Register(dwarf_reg_num),
         2 => LocationKind::Direct {
             register: dwarf_reg_num,
-            offset: offset_or_small_const,
+            offset: offset_or_small_const as isize,
         },
         3 => LocationKind::Indirect {
             register: dwarf_reg_num,
-            offset: offset_or_small_const,
+            offset: offset_or_small_const as isize,
         },
         4 => LocationKind::Constant(offset_or_small_const as u64),
         5 => {

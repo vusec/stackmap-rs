@@ -46,7 +46,7 @@ impl<'input> FallibleIterator for StackMapsIter<'input> {
     }
 }
 
-type StackMapVersion = u8;
+pub type StackMapVersion = u8;
 
 #[derive(Debug, Clone)]
 pub struct StackMap<'input> {
@@ -130,8 +130,8 @@ impl<'input> Function<'input> {
         self.address
     }
 
-    pub fn stack_size(&self) -> u64 {
-        self.stack_size
+    pub fn stack_size(&self) -> usize {
+        self.stack_size as usize
     }
 
     pub fn records<'me>(&'me self) -> RecordsIter<'me, 'input> {
@@ -191,8 +191,8 @@ impl<'input> Record<'input> {
         self.patch_point_id
     }
 
-    pub fn instruction_offset(&self) -> u32 {
-        self.instruction_offset
+    pub fn instruction_offset(&self) -> usize {
+        self.instruction_offset as usize
     }
 
     pub fn locations(&self) -> LocationsIter<'input> {
@@ -275,8 +275,14 @@ pub type DwarfRegNum = u16;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum LocationKind {
     Register(DwarfRegNum),
-    Direct { register: DwarfRegNum, offset: i32 },
-    Indirect { register: DwarfRegNum, offset: i32 },
+    Direct {
+        register: DwarfRegNum,
+        offset: isize,
+    },
+    Indirect {
+        register: DwarfRegNum,
+        offset: isize,
+    },
     Constant(u64),
 }
 
@@ -291,8 +297,8 @@ impl Location {
         &self.kind
     }
 
-    pub fn size(&self) -> u16 {
-        self.size
+    pub fn size(&self) -> usize {
+        self.size as usize
     }
 }
 
@@ -307,8 +313,8 @@ impl LiveOut {
         self.dwarf_reg_num
     }
 
-    pub fn size(&self) -> u8 {
-        self.size
+    pub fn size(&self) -> usize {
+        self.size as usize
     }
 }
 
