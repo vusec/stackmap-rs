@@ -29,7 +29,7 @@ pub struct StackMapsIter<'input> {
 
 impl<'input> FallibleIterator for StackMapsIter<'input> {
     type Item = StackMap<'input>;
-    type Error = Error<'input>;
+    type Error = Error;
 
     fn next(&mut self) -> Result<'input, Option<Self::Item>> {
         if self.data.is_empty() {
@@ -86,7 +86,7 @@ pub struct FunctionsIter<'input> {
 
 impl<'input> FallibleIterator for FunctionsIter<'input> {
     type Item = Function<'input>;
-    type Error = Error<'input>;
+    type Error = Error;
 
     fn next(&mut self) -> Result<'input, Option<Self::Item>> {
         if self.data.is_empty() {
@@ -159,7 +159,7 @@ pub struct RecordsIter<'function, 'input> {
 
 impl<'function, 'input> FallibleIterator for RecordsIter<'function, 'input> {
     type Item = Record<'input>;
-    type Error = Error<'input>;
+    type Error = Error;
 
     fn next(&mut self) -> Result<'input, Option<Self::Item>> {
         let record_slice = match self.records_iter.next() {
@@ -235,7 +235,7 @@ pub struct LocationsIter<'input> {
 
 impl<'input> FallibleIterator for LocationsIter<'input> {
     type Item = Location;
-    type Error = Error<'input>;
+    type Error = Error;
 
     fn next(&mut self) -> Result<'input, Option<Self::Item>> {
         if self.data.is_empty() {
@@ -264,7 +264,7 @@ pub struct LiveOutsIter<'input> {
 
 impl<'input> FallibleIterator for LiveOutsIter<'input> {
     type Item = LiveOut;
-    type Error = Error<'input>;
+    type Error = Error;
 
     fn next(&mut self) -> Result<'input, Option<Self::Item>> {
         if self.data.is_empty() {
@@ -334,12 +334,12 @@ impl LiveOut {
     }
 }
 
-type Result<'a, T> = std::result::Result<T, Error<'a>>;
+type Result<'a, T> = std::result::Result<T, Error>;
 
 #[derive(Debug, Snafu)]
-pub enum Error<'a> {
+pub enum Error {
     ParserError {
-        input: &'a [u8],
+        input: Vec<u8>,
         kind: nom::error::ErrorKind,
     },
     UnsupportedVersion,

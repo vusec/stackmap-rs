@@ -8,3 +8,13 @@ edition = "2018"
 snafu = "0.6.10"
 nom = "6.0.1"
 fallible-iterator = "0.2.0"
+
+# Cmdline parser dependencies
+structopt = "0.3.21"
+anyhow = "1.0.40"
+memmap2 = "0.2.2"
+object = "0.23.0"
+
+[[bin]]
+name = "stackmap-parser"
+path = "src/main.rs"

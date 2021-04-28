@@ -8,7 +8,7 @@ use nom::{
     sequence::tuple,
 };
 
-type IResult<'a, I, O> = nom::IResult<I, O, crate::Error<'a>>;
+type IResult<I, O> = nom::IResult<I, O, crate::Error>;
 
 const STACK_SIZE_RECORD_SIZE: usize = size_of::<u64>() * 3;
 const CONSTANT_SIZE: usize = size_of::<u64>();
@@ -16,10 +16,10 @@ const LOCATION_SIZE: usize = size_of::<u8>() * 2 + size_of::<u16>() * 3 + size_o
 const LIVE_OUT_SIZE: usize = size_of::<u16>() + size_of::<u8>() * 2;
 const ALIGNMENT_BYTES: usize = 8;
 
-impl<'a, T> nom::error::ParseError<(&'a [u8], T)> for crate::Error<'a> {
+impl<'a, T> nom::error::ParseError<(&'a [u8], T)> for crate::Error {
     fn from_error_kind(input: (&'a [u8], T), kind: nom::error::ErrorKind) -> Self {
         Self::ParserError {
-            input: input.0,
+            input: input.0[..8].into(),
             kind,
         }
     }
@@ -29,9 +29,12 @@ impl<'a, T> nom::error::ParseError<(&'a [u8], T)> for crate::Error<'a> {
     }
 }
 
-impl<'a> nom::error::ParseError<&'a [u8]> for crate::Error<'a> {
+impl<'a> nom::error::ParseError<&'a [u8]> for crate::Error {
     fn from_error_kind(input: &'a [u8], kind: nom::error::ErrorKind) -> Self {
-        Self::ParserError { input, kind }
+        Self::ParserError {
+            input: input[..8].into(),
+            kind,
+        }
     }
 
     fn append(_: &[u8], _: nom::error::ErrorKind, other: Self) -> Self {
@@ -55,7 +58,7 @@ const fn padding_size(parsed_bytes: usize, alignment_bytes: usize) -> usize {
 
 pub(crate) fn parse_record<'a>(
     input_and_constants: (&'a [u8], &'a [u64]),
-) -> IResult<'a, (&'a [u8], &'a [u64]), Record<'a>> {
+) -> IResult<(&'a [u8], &'a [u64]), Record<'a>> {
     // The `constants` are just passed on without being changed
     let (input, constants) = input_and_constants;
 
